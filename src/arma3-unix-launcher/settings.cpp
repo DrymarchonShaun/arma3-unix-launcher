@@ -142,6 +142,7 @@ void Settings::load_settings_to_ui(Ui::MainWindow *ui)
     read_setting("dlcGlobalMobilization", ui->checkbox_dlc_global_mobilization);
     read_setting("dlcSogPrairieFire", ui->checkbox_dlc_sog_prairie_fire);
     read_setting("dlcReactionForces", ui->checkbox_dlc_reaction_forces);
+    read_setting("dlcExpeditionaryForces", ui->checkbox_dlc_expeditionary_forces);
     read_setting("dlcCSLA", ui->checkbox_dlc_csla);
     read_setting("dlcSpearhead1944", ui->checkbox_dlc_spearhead_1944);
     read_setting("dlcWesternSahara", ui->checkbox_dlc_western_sahara);
