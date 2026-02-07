@@ -4,6 +4,7 @@
 #include <trompeloeil.hpp>
 #include "default_test_reporter.hpp"
 
+#include <cstdlib>
 #include <filesystem>
 
 #include <fmt/format.h>
@@ -49,6 +50,38 @@ namespace doctest
 }
 
 using trompeloeil::_;
+
+class EnvVarGuard
+{
+    public:
+        EnvVarGuard(char const *name, char const *value)
+            : name_(name)
+        {
+            if (char const *old_value = getenv(name))
+            {
+                had_old_value_ = true;
+                old_value_ = old_value;
+            }
+
+            if (value)
+                setenv(name, value, 1);
+            else
+                unsetenv(name);
+        }
+
+        ~EnvVarGuard()
+        {
+            if (had_old_value_)
+                setenv(name_.c_str(), old_value_.c_str(), 1);
+            else
+                unsetenv(name_.c_str());
+        }
+
+    private:
+        std::string name_;
+        std::string old_value_;
+        bool had_old_value_ = false;
+};
 
 class SteamUtilsTests
 {
@@ -288,6 +321,28 @@ TEST_CASE_FIXTURE(ConfigFileContainsKeyAboutCompatibilityToolForAppid, "Requeste
             CHECK_EQ("run", compatibility_tool.second);
         }
     }
+}
+
+TEST_CASE_FIXTURE(ConfigFileContainsKeyAboutCompatibilityToolForAppid, "Requested tool is found via STEAM_EXTRA_COMPAT_TOOLS_PATHS")
+{
+    EnvVarGuard env_guard("STEAM_EXTRA_COMPAT_TOOLS_PATHS", "/extra/compat:/relative/ignored::");
+
+    REQUIRE_CALL(filesystemUtilsMock, Exists(steam_compatibility_tool_dir)).RETURN(false);
+    REQUIRE_CALL(filesystemUtilsMock, Exists(system_compatibility_tool_dir)).RETURN(false);
+
+    std::filesystem::path const extra_tool_dir = "/extra/compat/proton_7";
+    REQUIRE_CALL(filesystemUtilsMock, Exists(extra_tool_dir)).RETURN(true);
+
+    auto const manifest_file = extra_tool_dir / "toolmanifest.vdf";
+    auto const manifest_commandline_key = "manifest/commandline";
+    auto const manifest_commandline = "/proton run";
+
+    REQUIRE_CALL(stdUtilsMock, FileReadAllText(manifest_file)).LR_RETURN(manifest_file);
+    REQUIRE_CALL(vdfMock, LoadFromText(manifest_file.string(), false, _)).SIDE_EFFECT(_3.KeyValue[manifest_commandline_key] = manifest_commandline);
+
+    auto const compatibility_tool = steam->GetCompatibilityToolForAppId(appid);
+    CHECK_EQ("/extra/compat/proton_7/proton", compatibility_tool.first);
+    CHECK_EQ("run", compatibility_tool.second);
 }
 
 class RequestedToolIsSteamsToolTests : public ConfigFileContainsKeyAboutCompatibilityToolForAppid

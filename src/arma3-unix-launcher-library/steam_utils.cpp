@@ -2,6 +2,7 @@
 
 #include <exception>
 #include <stdexcept>
+#include <cstdlib>
 
 #include <fmt/format.h>
 #include <spdlog/spdlog.h>
@@ -27,6 +28,33 @@ namespace
     std::filesystem::path get_install_path_from_vdf(std::filesystem::path const &install_path, VDF const &vdf)
     {
         return install_path / "steamapps/common" / vdf.KeyValue.at("AppState/installdir");
+    }
+
+    std::vector<std::filesystem::path> get_extra_compatibility_tool_paths()
+    {
+        std::vector<std::filesystem::path> paths;
+        char const *raw_paths = getenv("STEAM_EXTRA_COMPAT_TOOLS_PATHS");
+        if (raw_paths == nullptr)
+            return paths;
+
+        std::string const raw_paths_string = raw_paths;
+        if (raw_paths_string.empty())
+            return paths;
+
+        for (auto const &segment : StringUtils::Split(raw_paths_string, ":"))
+        {
+            auto const trimmed = StringUtils::trim(segment);
+            if (trimmed.empty())
+                continue;
+
+            std::filesystem::path const candidate = std::string(trimmed);
+            if (!candidate.is_absolute())
+                continue;
+
+            paths.emplace_back(candidate);
+        }
+
+        return paths;
     }
 }
 
@@ -146,6 +174,13 @@ std::filesystem::path SteamUtils::get_compatibility_tool_path(std::string const 
     catch (std::exception const &e)
     {
         spdlog::debug("failed to find user compatibility tool '{}'", shortname);
+    }
+
+    for (auto const &extra_path : get_extra_compatibility_tool_paths())
+    {
+        auto const candidate = extra_path / shortname;
+        if (fs::Exists(candidate))
+            return candidate;
     }
 
     return get_builtin_compatibility_tool(shortname);
